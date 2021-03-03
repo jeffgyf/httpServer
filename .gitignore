@@ -1,2 +1,5 @@
 /server/bin
 /server/obj
+/RequestProcessor/obj
+/RequestProcessor/bin
+/.vs

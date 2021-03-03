@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Server.RequestProcessor;
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -36,17 +37,11 @@ namespace Server
                 {
                     throw new Exception("Unexpected request line: " + string.Join(" ", requestLine));
                 }
-                (string method, string uri, string version) = (requestLine[0], requestLine[1], requestLine[2]);
-                var body = Encoding.Default.GetBytes($"You are accessing {uri}");
-                string responseHeader = 
-                    "HTTP/1.0 200 OK\r\n" +
-                    "MIME-Version: 1.0\r\n" +
-                    $"Date: {DateTime.Now}\r\n" +
-                    "Server: Simple-Server/1.0\r\n" +
-                    "Content-Type: text/html\r\n" +
-                    $"Content-Length: {body.Length}\r\n\r\n";
-                conn.Send(Encoding.Default.GetBytes(responseHeader));
-                conn.Send(body);
+                var request = new HttpRequest { Method = requestLine[0], Uri = requestLine[1], Version = requestLine[2] };
+
+                var response = RequestProcessors.Echo(request);
+                conn.Send(response.header);
+                conn.Send(response.body);
             }
             finally 
             {
