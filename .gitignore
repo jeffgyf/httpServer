@@ -3,3 +3,5 @@
 /RequestProcessor/obj
 /RequestProcessor/bin
 /.vs
+/SimpleServer/obj
+/SimpleServer/bin
