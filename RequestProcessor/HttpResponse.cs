@@ -4,10 +4,9 @@ using System.Text;
 
 namespace Server.RequestProcessorLib
 {
-    public class HttpRequest
+    public class HttpResponse
     {
-        public string Method;
-        public string Uri;
-        public string Version;
+        public byte[] Header;
+        public byte[] Body;
     }
 }
