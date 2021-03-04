@@ -18,7 +18,7 @@ namespace Server.RequestProcessorLib
             {
                 var body = Encoding.Default.GetBytes(func.Invoke());
                 var responseHeader = Encoding.Default.GetBytes(
-                    "HTTP/1.0 200 OK\r\n" +
+                    "HTTP/1.1 200 OK\r\n" +
                     "MIME-Version: 1.0\r\n" +
                     $"Date: {DateTime.Now}\r\n" +
                     "Server: Simple-Server/1.0\r\n" +
