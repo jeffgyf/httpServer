@@ -21,7 +21,7 @@ namespace Server
 
             while (true)
             {
-                AsyncServe(socket);
+               AsyncServe(socket).Wait();
             }
         }
 
@@ -33,44 +33,46 @@ namespace Server
             conn.Send(response.Body);
         }
 
-        static async void AsyncServe(Socket socket) 
+        static async Task AsyncServe(Socket socket) 
         {
-            var conn = socket.Accept();
-            try
-            {
-                var response = Process(conn, RequestProcessors.Echo);
-                await conn.SendAsync(response.Header);
-                await conn.SendAsync(response.Body);
-            }
-            finally 
-            {
-                conn.Close();
-            }
+            var taskCompletion = new TaskCompletionSource<object>();
+            // var conn = socket.Accept();
+            socket.BeginAccept(async ar => {
+                taskCompletion.SetResult(null);
+                var conn = socket.EndAccept(ar);
+                try
+                {
+                    Console.WriteLine("start processing incoming request---------------------------------");
+                    var response = Process(conn, RequestProcessors.Echo);
+                    await conn.SendAsync(response.Header);
+                    await conn.SendAsync(response.Body);
+                }
+                finally
+                {
+                    conn.Close();
+                    Console.WriteLine("done--------------------------------------------------------------\r\n\r\n");
+                }
+            }, null);
+            await taskCompletion.Task;
         }
 
         static async Task SendAsync(this Socket socket, byte[] buf) 
         {
             var taskCompletion = new TaskCompletionSource<object>();
             socket.BeginSend(buf, 0, buf.Length, 0,
-              new AsyncCallback(sendCallback), socket);
-
-            void sendCallback(IAsyncResult ar)
-            {
-                try
-                {
-                    // Retrieve the socket from the state object.  
-                    Socket handler = (Socket)ar.AsyncState;
-                    // Complete sending the data to the remote device.  
-                    int bytesSent = handler.EndSend(ar);
-                    Console.WriteLine("Sent {0} bytes to client.", bytesSent);
-                    taskCompletion.SetResult(null);
-
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e.ToString());
-                }
-            }
+              ar => 
+              {
+                  try
+                  {
+                      int bytesSent = socket.EndSend(ar);
+                      Console.WriteLine("Sent {0} bytes to client.", bytesSent);
+                      taskCompletion.SetResult(null);
+                  }
+                  catch (Exception e)
+                  {
+                      Console.WriteLine(e.ToString());
+                  }
+              }, null);
 
             await taskCompletion.Task;
         }
@@ -81,13 +83,15 @@ namespace Server
             var buf = new byte[1024];
             conn.Receive(buf, 0, 1024, SocketFlags.None);
             string header = Encoding.Default.GetString(buf);
-            string[] requestLine = header.Substring(0, header.IndexOf("\r\n")).Split(" ");
-            if (requestLine.Length != 3)
+            string requestLine = header.Substring(0, header.IndexOf("\r\n"));
+            Console.WriteLine(requestLine);
+            string[] splited = requestLine.Split(" ");
+            if (splited.Length != 3)
             {
                 throw new Exception("Unexpected request line: " + string.Join(" ", requestLine));
             }
-            var request = new HttpRequest { Method = requestLine[0], Uri = requestLine[1], Version = requestLine[2] };
-
+            var request = new HttpRequest { Method = splited[0], Uri = splited[1], Version = splited[2] };
+            
             return processor.Invoke(request);
         }
 
