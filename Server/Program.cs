@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace Server
@@ -29,16 +30,27 @@ namespace Server
     }
     static class Program
     {
+        static int threadNumber = 10;
         static void Main(string[] args)
         {
-            const int port = 8080;
             var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            IPEndPoint ep = new IPEndPoint(IPAddress.Any, port);
-            socket.Bind(ep);
-            socket.Listen(10000);
+            try
+            {
+                const int port = 8080;
+                IPEndPoint ep = new IPEndPoint(IPAddress.Any, port);
+                socket.Bind(ep);
+                socket.Listen(10);
 
-            //SimpleServe(socket);
-            AsyncServe(socket).Wait();
+                //SimpleServe(socket);
+
+                Task.Run(() => SimpleParallelServe(socket));
+                Console.ReadLine();
+            }
+            finally 
+            {
+                socket.Close();
+            }
+            
         }
 
         static void SimpleServe(Socket socket)
@@ -51,7 +63,7 @@ namespace Server
                 {
                     var buf = new byte[1024];
                     conn.Receive(buf, 0, 1024, SocketFlags.None);
-                    var response = Process(buf, 0, RequestProcessors.Echo);
+                    var response = Process(buf, 0, RequestProcessors.Random);
                     conn.Send(response.Header);
                     conn.Send(response.Body);
                 }
@@ -62,6 +74,18 @@ namespace Server
             }
         }
 
+        static void SimpleParallelServe(Socket socket)
+        {
+            var tasks = Enumerable.Repeat(new Func<Task>(() => Task.Run(() =>
+            {
+                Console.WriteLine($"thread {Thread.CurrentThread.ManagedThreadId} initialized!");
+                SimpleServe(socket);
+            })), threadNumber).Select(f => f()).ToArray();
+            Task.WaitAll(tasks);
+        }
+
+
+
         static int connCnt = 0;
         static async Task AsyncServe(Socket socket) 
         {
@@ -71,51 +95,74 @@ namespace Server
                 var conn = socket.Accept();
                 var clientIp = (IPEndPoint)conn.RemoteEndPoint;
                 int connId = connCnt++;
-                Logger.Log($"----------connection {connId} established: {clientIp.Address}");
-                var func = new Func<Socket, Task>(async conn =>
-                {
-                    try
-                    {
-                        var st = DateTime.Now;
-                        var et = st + TimeSpan.FromSeconds(300);
-                        while (DateTime.Now < et)
-                        {
-                            var result = await conn.ReceiveAsync();
-                            if (result.Count == 0)
-                            {
-                                break;
-                            }
-                            //var result = new byte[1024];
-                            //conn.Receive(result, 0, 1024, SocketFlags.None);
-                            var response = Process(result, connId, RequestProcessors.Echo);
-                            await conn.SendAsync(response.Header.Concat(response.Body).ToArray());
-                            /*socket.BeginAccept(async ar => {
-                                taskCompletion.SetResult(null);
-                                var conn = socket.EndAccept(ar);
-                                try
-                                {
-                                    //Console.WriteLine("start processing incoming request---------------------------------");
-                                    var response = Process(conn, RequestProcessors.Echo);
-                                    await conn.SendAsync(response.Header);
-                                    await conn.SendAsync(response.Body);
-                                }
-                                finally
-                                {
-                                    conn.Close();
-                                    //Console.WriteLine("done--------------------------------------------------------------\r\n\r\n");
-                                }
-                            }, null);//*/
-                        }
-                    }
-                    finally
-                    {
-                        Logger.Log($"----------connection {connId} closed!");
-                        conn.Close();
-                    }
-                }).Invoke(conn);
+                Logger.Log($"----------thread {Thread.CurrentThread.ManagedThreadId}: connection {connId} established: {clientIp.Address}");
+                AsyncProcess(conn, connId);
 
             }
             //await taskCompletion.Task;
+        }
+
+        static async void AsyncProcess(Socket conn, int connId) 
+        {
+            try
+            {
+                var st = DateTime.Now;
+                var et = st + TimeSpan.FromSeconds(300);
+                while (DateTime.Now < et)
+                {
+                    var result = await conn.ReceiveAsync();
+                    if (result.Count == 0)
+                    {
+                        break;
+                    }
+                    //var result = new byte[1024];
+                    //conn.Receive(result, 0, 1024, SocketFlags.None);
+                    var response = Process(result, connId, RequestProcessors.Random);
+                    await conn.SendAsync(response.Header.Concat(response.Body).ToArray());
+                    /*socket.BeginAccept(async ar => {
+                        taskCompletion.SetResult(null);
+                        var conn = socket.EndAccept(ar);
+                        try
+                        {
+                            //Console.WriteLine("start processing incoming request---------------------------------");
+                            var response = Process(conn, RequestProcessors.Echo);
+                            await conn.SendAsync(response.Header);
+                            await conn.SendAsync(response.Body);
+                        }
+                        finally
+                        {
+                            conn.Close();
+                            //Console.WriteLine("done--------------------------------------------------------------\r\n\r\n");
+                        }
+                    }, null);//*/
+                }
+            }
+            finally
+            {
+                Logger.Log($"----------connection {connId} closed!");
+                conn.Close();
+            }
+        }
+
+        static void ChannelParallelServe(Socket socket) 
+        {
+            var ch = Channel.CreateBounded<(Socket conn, int connId) >(5000);
+
+            var tasks = Enumerable.Repeat(new Func<Task>(() => Task.Run(async () =>
+            {
+                Console.WriteLine($"thread {Thread.CurrentThread.ManagedThreadId} initialized!");
+                while (true)
+                {
+                    (Socket conn, int connId) = await ch.Reader.ReadAsync();
+                    AsyncProcess(conn, connId);
+                }
+            })), threadNumber).Select(f => f()).ToArray();
+            int cnt = 0;
+            while (true) 
+            {
+                var conn = socket.Accept();
+                ch.Writer.WriteAsync((conn, cnt++));
+            }
         }
 
         static async Task SendAsync(this Socket socket, byte[] buf) 
@@ -187,7 +234,7 @@ namespace Server
         {
             string header = Encoding.Default.GetString(buf.ToArray());
             string requestLine = header.Substring(0, header.IndexOf("\r\n"));
-            Console.WriteLine($"connection {connId}:" + requestLine);
+            Console.WriteLine($"thread {Thread.CurrentThread.ManagedThreadId}:connection {connId}:" + requestLine);
             string[] splited = requestLine.Split(" ");
             if (splited.Length != 3)
             {

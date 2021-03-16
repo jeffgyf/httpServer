@@ -7,9 +7,29 @@ namespace Server.RequestProcessorLib
     public delegate HttpResponse RequestProcessor(HttpRequest request);
     public static class RequestProcessors
     {
+        [ThreadStatic]
+        static Random randInternal = new Random();
+
+        static Random rand 
+        {
+            get 
+            {
+                if (randInternal == null)
+                {
+                    randInternal = new Random();
+                }
+                return randInternal;
+            }
+        }
+
         public static HttpResponse Echo(HttpRequest request) 
         {
             return Generate(() => $"You are accessing {request.Uri}").Invoke(request);
+        }
+
+        public static HttpResponse Random(HttpRequest request)
+        {
+            return Generate(() => $"{rand.Next()}").Invoke(request);
         }
 
         public static RequestProcessor Generate(Func<string> func)
