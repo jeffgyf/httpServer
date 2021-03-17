@@ -24,31 +24,79 @@ namespace Server.RequestProcessorLib
 
         public static HttpResponse Echo(HttpRequest request) 
         {
-            return Generate(() => $"You are accessing {request.Uri}").Invoke(request);
+            var body = $"You are accessing {request.Uri}";
+            var response = new HttpResponse { Body = body, Status = 200 };
+            return response;
         }
 
         public static HttpResponse Random(HttpRequest request)
         {
-            return Generate(() => $"{rand.Next()}").Invoke(request);
+            var response = new HttpResponse { Body = $"{rand.Next()}", Status = 200 };
+            return response;
         }
 
-        public static RequestProcessor Generate(Func<string> func)
+        public static HttpResponse CGI(HttpRequest request) 
         {
-            HttpResponse fun(HttpRequest request)
+            var qMarkLoc = request.Uri.IndexOf('?');
+            var args = (qMarkLoc == -1 ? "" : request.Uri.Split('?')[1]).Replace('&', ' ');
+            qMarkLoc = (qMarkLoc == -1 ? request.Uri.Length : qMarkLoc);
+            var cmd = request.Uri.Substring(1, qMarkLoc - 1);
+
+            Logger.Log($"CGI: {cmd} {args}");
+            HttpResponse resp = null;
+            try
             {
-                var body = Encoding.Default.GetBytes(func.Invoke());
-                var responseHeader = Encoding.Default.GetBytes(
-                    "HTTP/1.1 200 OK\r\n" +
-                    "MIME-Version: 1.0\r\n" +
-                    $"Date: {DateTime.Now}\r\n" +
-                    "Server: Simple-Server/1.0\r\n" +
-                    "Content-Type: text/html\r\n" +
-                    $"Content-Length: {body.Length}\r\n" +
-                    $"\r\n");
-                return new HttpResponse { Header = responseHeader, Body = body };
+                var cliHelper = new CLIHelper($"K:/workshop/httpServer/Server/CGI/{cmd}.exe");
+                var result = cliHelper.Run(args);
+                if (result.output == null) 
+                {
+                    throw new Exception(result.error);
+                }
+                resp = new HttpResponse { Body = result.output, Status = 200 };
+            }
+            catch (Exception e) 
+            {
+                resp = new HttpResponse { Body = e.Message, Status = 500 };
             }
 
-            return fun;
+            return resp;
+        }
+
+        public static byte[] GenerateHeader(int statusCode, int bodyLength, string header) 
+        {
+            var responseHeader =
+                   $"HTTP/1.1 {statusCode} {GetCodeName(statusCode)}\r\n" +
+                   header +
+                   "MIME-Version: 1.0\r\n" +
+                   $"Date: {DateTime.Now}\r\n" +
+                   "Server: Simple-Server/1.0\r\n" +
+                   "Content-Type: text/html; charset=utf-8\r\n" +
+                   $"Content-Length: {bodyLength}\r\n" +
+                   $"\r\n";
+
+            return Encoding.UTF8.GetBytes(responseHeader);
+        }
+
+        public static string GetCodeName(int statusCode) 
+        {
+            switch (statusCode) 
+            {
+                case 200:
+                    return "OK";
+                case 404:
+                    return "Not Found";
+                case 500:
+                    return "Internal Server Error";
+            }
+            return "Unknown";
+        }
+
+        public static (byte[] Header, byte[] Body) GenerateResponse(this RequestProcessor processor, HttpRequest request) 
+        {
+            var resp = processor.Invoke(request);
+            var body = Encoding.UTF8.GetBytes(resp.Body);
+            var header = GenerateHeader(resp.Status, body.Length, resp.Header);
+            return (header, body);
         }
     }
 }

@@ -6,7 +6,8 @@ namespace Server.RequestProcessorLib
 {
     public class HttpResponse
     {
-        public byte[] Header;
-        public byte[] Body;
+        public string Header = "";
+        public string Body;
+        public int Status;
     }
 }

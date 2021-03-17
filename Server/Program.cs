@@ -39,11 +39,11 @@ namespace Server
                 const int port = 8080;
                 IPEndPoint ep = new IPEndPoint(IPAddress.Any, port);
                 socket.Bind(ep);
-                socket.Listen(10);
+                socket.Listen(100);
 
                 //SimpleServe(socket);
 
-                Task.Run(() => SimpleParallelServe(socket));
+                Task.Run(() => SimpleParallelServe(socket, RequestProcessors.CGI));
                 Console.ReadLine();
             }
             finally 
@@ -53,7 +53,7 @@ namespace Server
             
         }
 
-        static void SimpleServe(Socket socket)
+        static void SimpleServe(Socket socket, RequestProcessor processor)
         {
             while (true)
             {
@@ -63,7 +63,7 @@ namespace Server
                 {
                     var buf = new byte[1024];
                     conn.Receive(buf, 0, 1024, SocketFlags.None);
-                    var response = Process(buf, 0, RequestProcessors.Random);
+                    var response = Process(buf, 0, processor);
                     conn.Send(response.Header);
                     conn.Send(response.Body);
                 }
@@ -74,12 +74,12 @@ namespace Server
             }
         }
 
-        static void SimpleParallelServe(Socket socket)
+        static void SimpleParallelServe(Socket socket, RequestProcessor processor)
         {
             var tasks = Enumerable.Repeat(new Func<Task>(() => Task.Run(() =>
             {
                 Console.WriteLine($"thread {Thread.CurrentThread.ManagedThreadId} initialized!");
-                SimpleServe(socket);
+                SimpleServe(socket, processor);
             })), threadNumber).Select(f => f()).ToArray();
             Task.WaitAll(tasks);
         }
@@ -87,7 +87,7 @@ namespace Server
 
 
         static int connCnt = 0;
-        static async Task AsyncServe(Socket socket) 
+        static async Task AsyncServe(Socket socket, RequestProcessor processor) 
         {
             // var taskCompletion = new TaskCompletionSource<object>();
             while (true)
@@ -96,13 +96,13 @@ namespace Server
                 var clientIp = (IPEndPoint)conn.RemoteEndPoint;
                 int connId = connCnt++;
                 Logger.Log($"----------thread {Thread.CurrentThread.ManagedThreadId}: connection {connId} established: {clientIp.Address}");
-                AsyncProcess(conn, connId);
+                AsyncProcess(conn, connId, processor);
 
             }
             //await taskCompletion.Task;
         }
 
-        static async void AsyncProcess(Socket conn, int connId) 
+        static async void AsyncProcess(Socket conn, int connId, RequestProcessor processor) 
         {
             try
             {
@@ -117,7 +117,7 @@ namespace Server
                     }
                     //var result = new byte[1024];
                     //conn.Receive(result, 0, 1024, SocketFlags.None);
-                    var response = Process(result, connId, RequestProcessors.Random);
+                    var response = Process(result, connId, processor);
                     await conn.SendAsync(response.Header.Concat(response.Body).ToArray());
                     /*socket.BeginAccept(async ar => {
                         taskCompletion.SetResult(null);
@@ -144,7 +144,7 @@ namespace Server
             }
         }
 
-        static void ChannelParallelServe(Socket socket) 
+        static void ChannelParallelServe(Socket socket, RequestProcessor processor) 
         {
             var ch = Channel.CreateBounded<(Socket conn, int connId) >(5000);
 
@@ -154,7 +154,7 @@ namespace Server
                 while (true)
                 {
                     (Socket conn, int connId) = await ch.Reader.ReadAsync();
-                    AsyncProcess(conn, connId);
+                    AsyncProcess(conn, connId, processor);
                 }
             })), threadNumber).Select(f => f()).ToArray();
             int cnt = 0;
@@ -230,7 +230,7 @@ namespace Server
 
 
 
-        static HttpResponse Process(IEnumerable<byte> buf, int connId, RequestProcessor processor)
+        static (byte[] Header, byte[] Body) Process(IEnumerable<byte> buf, int connId, RequestProcessor processor)
         {
             string header = Encoding.Default.GetString(buf.ToArray());
             string requestLine = header.Substring(0, header.IndexOf("\r\n"));
@@ -242,7 +242,7 @@ namespace Server
             }
             var request = new HttpRequest { Method = splited[0], Uri = splited[1], Version = splited[2] };
             
-            return processor.Invoke(request);
+            return processor.GenerateResponse(request);
         }
 
     }

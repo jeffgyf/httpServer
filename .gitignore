@@ -1,7 +1,3 @@
-/server/bin
-/server/obj
-/RequestProcessor/obj
-/RequestProcessor/bin
+bin
+obj
 /.vs
-/SimpleServer/obj
-/SimpleServer/bin
