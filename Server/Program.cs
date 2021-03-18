@@ -43,7 +43,7 @@ namespace Server
 
                 //SimpleServe(socket);
 
-                Task.Run(() => SimpleParallelServe(socket, RequestProcessors.CGI));
+                Task.Run(() => SimpleParallelServe(socket, RequestProcessors.Static));
                 Console.ReadLine();
             }
             finally 
@@ -63,7 +63,7 @@ namespace Server
                 {
                     var buf = new byte[1024];
                     conn.Receive(buf, 0, 1024, SocketFlags.None);
-                    var response = Process(buf, 0, processor);
+                    var response = Process(buf, 0, processor).Result;
                     conn.Send(response.Header);
                     conn.Send(response.Body);
                 }
@@ -117,7 +117,7 @@ namespace Server
                     }
                     //var result = new byte[1024];
                     //conn.Receive(result, 0, 1024, SocketFlags.None);
-                    var response = Process(result, connId, processor);
+                    var response = await Process(result, connId, processor);
                     await conn.SendAsync(response.Header.Concat(response.Body).ToArray());
                     /*socket.BeginAccept(async ar => {
                         taskCompletion.SetResult(null);
@@ -230,7 +230,13 @@ namespace Server
 
 
 
-        static (byte[] Header, byte[] Body) Process(IEnumerable<byte> buf, int connId, RequestProcessor processor)
+        static Task<(byte[] Header, byte[] Body)> Process(IEnumerable<byte> buf, int connId, RequestProcessor processor)
+        {
+            var request = GenerateRequest(buf, connId);
+            return processor.GenerateResponse(request);
+        }
+
+        static HttpRequest GenerateRequest(IEnumerable<byte> buf, int connId) 
         {
             string header = Encoding.Default.GetString(buf.ToArray());
             string requestLine = header.Substring(0, header.IndexOf("\r\n"));
@@ -241,9 +247,10 @@ namespace Server
                 throw new Exception("Unexpected request line: " + string.Join(" ", requestLine));
             }
             var request = new HttpRequest { Method = splited[0], Uri = splited[1], Version = splited[2] };
-            
-            return processor.GenerateResponse(request);
+            return request;
         }
+
+
 
     }
 }
