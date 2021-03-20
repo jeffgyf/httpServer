@@ -1,7 +1,7 @@
-﻿using Server.RequestProcessorLib;
+﻿using Server.Commons;
+using Server.RequestProcessorLib;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -43,7 +43,7 @@ namespace Server
 
                 //SimpleServe(socket);
 
-                Task.Run(() => SimpleParallelServe(socket, RequestProcessors.Static));
+                Task.Run(() => SimpleParallelServe(socket, JSP.Impl.Pipeline));
                 Console.ReadLine();
             }
             finally 

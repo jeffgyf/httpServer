@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Server.RequestProcessorLib
+namespace Server.Commons
 {
     public class HttpStringResponse:IHttpResponse
     {
