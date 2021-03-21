@@ -1,23 +1,38 @@
-﻿using Server.Commons;
+﻿using JMVG;
+using Server.Commons;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using static Server.Commons.ControllerBase;
 
 namespace Server.JSP
 {
-    public static class Impl
+    public static class Pipeline
     {
         private static Dictionary<string, RequestProcessor[]> processorMap;
 
-        static Impl() 
+        static Pipeline() 
         {
+            AppDomain.CurrentDomain.Load("JMVG");
+            var controllerImpls = AppDomain.CurrentDomain.GetAssemblies().SelectMany(x => x.GetTypes())
+                .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && typeof(ControllerBase)!=t && !t.IsInterface && !t.IsAbstract)
+                .ToList();
             processorMap = new Dictionary<string, RequestProcessor[]>();
-            var controllers = new List<Type> { typeof(TestController) }.Select(t => (ControllerBase) Activator.CreateInstance(t)).ToList();
-            controllers.ForEach(c => c.Register(processorMap));
+            var controllers = controllerImpls.Select(t => (ControllerBase) Activator.CreateInstance(t)).ToList();
+            controllers.ForEach(c => Register(c));
         }
 
-        public static async Task<IHttpResponse> Pipeline(HttpRequest request) 
+        private static void Register(ControllerBase controller) 
+        {
+            controller.Register(processorMap);
+        }
+
+        public static void Run() 
+        { 
+        }
+
+        public static async Task<IHttpResponse> Impl(HttpRequest request) 
         {
             var qMarkLoc = request.Uri.IndexOf('?');
             string path = qMarkLoc == -1 ? request.Uri : request.Uri.Substring(0, qMarkLoc);

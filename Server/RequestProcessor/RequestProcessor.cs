@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Server.Commons;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -66,13 +67,46 @@ namespace Server.RequestProcessorLib
             return resp;
         }
 
+        private static Dictionary<string, string> mimeDict = new Dictionary<string, string>
+        {
+            {".bmp", "image/bmp"},
+            {".css", "text/css"},
+            {".gz", "application/gzip"},
+            {".gif", "image/gif"},
+            {".htm", "text/html"},
+            {".html", "text/html"},
+            {".ico", "image/vnd.microsoft.icon"},
+            {".jpeg", "image/jpeg"},
+            {".jpg", "image/jpeg"},
+            {".js", "text/javascript"},
+            {".json", "application/json"},
+            {".jsonld", "application/ld+json"},
+            {".mp3", "audio/mpeg"},
+            {".mpeg", "video/mpeg"},
+            {".png", "image/png"},
+            {".pdf", "application/pdf"},
+            {".php", "application/x-httpd-php"},
+            {".svg", "image/svg+xml"},
+            {".tar", "application/x-tar"},
+            {".tiff", "image/tiff"},
+            {".ttf", "font/ttf"},
+            {".txt", "text/plain"},
+            {".wav", "audio/wav"},
+            {".xhtml", "application/xhtml+xml"},
+            {".xml", "application/xml"},
+            {".zip", "application/zip"},
+            {".7z", "application/x-7z-compressed"}
+        };
+
         public async static Task<IHttpResponse> Static(HttpRequest request) 
         {
-            string uri = request.Uri;
             IHttpResponse resp = null;
             try
             {
-                string path = "K:/workshop/httpServer/Server/static" + uri;
+                var splitted = request.Uri.Split('?');
+                string uriPath = splitted[0];
+                string uriArg = splitted.Length > 1 ? splitted[1] : "";
+                string path = "K:/workshop/httpServer/wwwroot" + uriPath;
                 var fileAttr = File.GetAttributes(path);
                 if ((fileAttr & FileAttributes.Directory) == FileAttributes.Directory)
                 {
@@ -82,15 +116,12 @@ namespace Server.RequestProcessorLib
                 }
                 else
                 {
+                    var file = new FileInfo(path);
                     var bytes = await File.ReadAllBytesAsync(path);
                     var bResp = new HttpBytesResponse { Body = bytes, Status = 200 };
-                    if (new[] { ".html", ".html", ".txt", ".md" }.Any(ext => uri.EndsWith(ext)))
+                    if (mimeDict.ContainsKey(file.Extension))
                     {
-                        bResp.ContentType = "text/html";
-                    }
-                    else if (new[] { ".png", ".jpg", ".bmp" }.Any(ext => uri.EndsWith(ext)))
-                    {
-                        bResp.ContentType = "image";
+                        bResp.ContentType = mimeDict[file.Extension];
                     }
                     else
                     {

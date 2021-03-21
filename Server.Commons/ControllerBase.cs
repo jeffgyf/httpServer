@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Server.JSP
+namespace Server.Commons
 {
     public class ControllerBase
     {
@@ -44,12 +44,14 @@ namespace Server.JSP
                 processorMap[p.Path][(int)p.Method] = p;
             });
         }
+
+        public class RequestProcessor
+        {
+            public HttpMethod Method;
+            public string Path;
+            public Func<HttpRequest, Task<IHttpResponse>> ProcessFunc;
+        }
     }
 
-    public class RequestProcessor
-    {
-        public HttpMethod Method;
-        public string Path;
-        public Func<HttpRequest, Task<IHttpResponse>> ProcessFunc;
-    }
+    
 }

@@ -9,7 +9,7 @@ namespace TestConsole
         static void Main(string[] args)
         {
             var a = new TestController();
-            var result = Impl.Pipeline(new HttpRequest { Uri = "/ok", Method="GET" }).Result;
+            var result = Pipeline.Impl(new HttpRequest { Uri = "/ok", Method="GET" }).Result;
         }
     }
 }

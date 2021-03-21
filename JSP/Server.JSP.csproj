@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\JMVG\JMVG.csproj" />
     <ProjectReference Include="..\Server.Commons\Server.Commons.csproj" />
   </ItemGroup>
 

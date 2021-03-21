@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Server.JSP
+namespace Server.Commons
 {
     public enum HttpMethod
     {

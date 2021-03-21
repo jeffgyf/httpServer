@@ -12,43 +12,22 @@ using System.Threading.Tasks;
 
 namespace Server
 {
-    public class MySocket : Socket
-    {
-        public MySocket(SocketInformation socketInformation) : base(socketInformation)
-        {
-        }
-
-        public MySocket(SocketType socketType, ProtocolType protocolType) : base(socketType, protocolType)
-        {
-        }
-
-        public MySocket(AddressFamily addressFamily, SocketType socketType, ProtocolType protocolType) : base(addressFamily, socketType, protocolType)
-        {
-        }
-
-        public int Id;
-    }
+    delegate void ServeFunc(Socket socket, RequestProcessor processor);
     static class Program
     {
         static int threadNumber = 10;
         static void Main(string[] args)
         {
-            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            var servers = new List<Server>();
             try
             {
-                const int port = 8080;
-                IPEndPoint ep = new IPEndPoint(IPAddress.Any, port);
-                socket.Bind(ep);
-                socket.Listen(100);
-
-                //SimpleServe(socket);
-
-                Task.Run(() => SimpleParallelServe(socket, JSP.Impl.Pipeline));
-                Console.ReadLine();
+                servers.Add(new Server(8080, SimpleServe, RequestProcessors.Static));
+                servers.Add(new Server(8000, SimpleServe, JSP.Pipeline.Impl));
+                Console.ReadKey();
             }
             finally 
             {
-                socket.Close();
+                servers.ForEach(s => s.Dispose());
             }
             
         }
@@ -250,7 +229,35 @@ namespace Server
             return request;
         }
 
+        private class Server:IDisposable
+        {
+            private Socket socket;
 
+            public Server(int portNum, ServeFunc serveFunc, RequestProcessor processor) 
+            {
+                socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                try
+                {
+                    IPEndPoint ep = new IPEndPoint(IPAddress.Any, portNum);
+                    socket.Bind(ep);
+                    socket.Listen(100);
+
+                    //SimpleServe(socket);
+
+                    Task.Run(() => serveFunc(socket, processor));
+                }
+                catch(Exception)
+                {
+                    socket.Close();
+                    throw;
+                }
+            }
+
+            public void Dispose()
+            {
+                socket.Close();
+            }
+        }
 
     }
 }

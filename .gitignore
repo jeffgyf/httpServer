@@ -3,3 +3,5 @@ obj
 /.vs
 /Server/static
 /Server/CGI
+/JMVG/appsettings.json
+/wwwroot
