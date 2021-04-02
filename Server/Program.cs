@@ -22,7 +22,10 @@ namespace Server
             try
             {
                 servers.Add(new Server(8080, SimpleServe, RequestProcessors.Static));
-                servers.Add(new Server(8000, SimpleServe, JSP.Pipeline.Impl));
+                Console.WriteLine("initializing jspProcessor");
+                var jspProcessor = new JspProcessor(2);
+                Console.WriteLine("jspProcessor initialized");
+                servers.Add(new Server(8000, SimpleServe, jspProcessor.Process));
                 Console.ReadKey();
             }
             finally 
@@ -46,6 +49,9 @@ namespace Server
                     conn.Send(response.Header);
                     conn.Send(response.Body);
                 }
+                catch (Exception) 
+                { 
+                }
                 finally
                 {
                     conn.Close();
@@ -66,7 +72,7 @@ namespace Server
 
 
         static int connCnt = 0;
-        static async Task AsyncServe(Socket socket, RequestProcessor processor) 
+        static async void AsyncServe(Socket socket, RequestProcessor processor) 
         {
             // var taskCompletion = new TaskCompletionSource<object>();
             while (true)

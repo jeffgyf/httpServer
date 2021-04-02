@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\JMVG\JMVG.csproj" />
+    <ProjectReference Include="..\NamedPipeLib\NamedPipeLib.csproj" />
     <ProjectReference Include="..\Server.Commons\Server.Commons.csproj" />
   </ItemGroup>
 

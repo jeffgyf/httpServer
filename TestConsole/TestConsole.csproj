@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\JMVG\JMVG.csproj" />
     <ProjectReference Include="..\JSP\Server.JSP.csproj" />
   </ItemGroup>
 

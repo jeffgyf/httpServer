@@ -1,4 +1,4 @@
-﻿using JMVG;
+﻿using NamedPipeLib;
 using Server.Commons;
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ namespace Server.JSP
 
         static Pipeline() 
         {
-            AppDomain.CurrentDomain.Load("JMVG");
+            // AppDomain.CurrentDomain.Load("JMVG");
             var controllerImpls = AppDomain.CurrentDomain.GetAssemblies().SelectMany(x => x.GetTypes())
                 .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && typeof(ControllerBase)!=t && !t.IsInterface && !t.IsAbstract)
                 .ToList();
@@ -29,7 +29,24 @@ namespace Server.JSP
         }
 
         public static void Run() 
-        { 
+        {
+            var completionResource = new TaskCompletionSource<int>();
+            new Func<Task>(async () =>
+            {
+                var pipeClient = new NamedPipeClient("JspServer");
+                pipeClient.OnDisconnect = (() => completionResource.SetResult(0));
+                await pipeClient.ConnectAsync();
+                Console.WriteLine("server connected");
+                while (true)
+                {
+                    await pipeClient.Process((HttpRequest request) =>
+                    {
+                        Console.WriteLine($"JSP: Process {request.Method} {request.Uri}");
+                        return Task.Run(()=> Impl(request));
+                    });
+                }
+            }).Invoke();
+            completionResource.Task.Wait();
         }
 
         public static async Task<IHttpResponse> Impl(HttpRequest request) 
